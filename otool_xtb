@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+args=("$@")
+namespace=$(printf '%s\n' "${args[@]}" | awk 'namespace {print $0; namespace=0}; /--namespace/ {namespace=1}')
+
+#please create a "xtb_parameter.txt" in your working directory to add customized xtb parameters like: --iterations 500 (no . or ,)
+xtb_para=$(cat xtb_parameter.txt)
+
+# path to xtb
+PATH_TO_XTB="/home/nasami/ProgramFiles/xtb-6.4.1/bin/xtb"
+
+# job name
+name=${namespace%*_[LS]_*}
+
+# start a single point energy calculation before optimization and save xtbrestart
+if [[ "$namespace" =~ .*_L_QM2_opt0 ]]
+then
+    if [ ! -f "$namespace.xtbrestart" ]
+    then
+        args_list="$*"
+        $PATH_TO_XTB ${args_list/--opt crude} $xtb_para
+        
+    fi
+    cp ${namespace}.xtbrestart ${name}_L_QM2.xtbrestart
+    cp ${namespace}.xtbrestart ${namespace}_sp.orca.xtbrestart
+fi
+
+if [[ "$namespace" =~ .*_S_Link_opt0 ]]
+then
+    if [ ! -f "$namespace.xtbrestart" ]
+    then
+        args_list="$*"
+        $PATH_TO_XTB ${args_list/--opt crude} $xtb_para
+    fi
+    
+    cp ${namespace}.xtbrestart ${name}_S_QM2.xtbrestart
+    cp ${namespace}.xtbrestart ${namespace}_sp.orca.xtbrestart
+fi
+
+# otool_xtb log
+#if [ -f "$namespace.xtbrestart" ]
+#then
+#   echo "restart" otool_xtb "$@" $xtb_para >> otool_xtb.log
+#else
+#   echo otool_xtb "$@" $xtb_para >> otool_xtb.log
+#fi
+
+# run xtb
+$PATH_TO_XTB "$@" $xtb_para
+
+
+# convert to charges.xtbrestart
+if [[ "$namespace" =~ .*_L_QM2_opt0 ]]
+then
+    cp ${namespace}.xtbrestart ${names}_L_QM2_charges.xtbrestart
+fi
+
+if [[ "$namespace" =~ .*_S_Link_opt0 ]]
+then
+    cp ${namespace}.xtbrestart ${name}_S_Link_charges.xtbrestart
+fi
+
+# save xtbout log
+if [[ "$namespace" =~ .*_L_* ]]
+then
+    cat ${namespace}.out >> ${name}_L_QM2.xtbout.log
+    cat ${namespace}.lastout >> ${name}_L_QM2.xtbout.log
+fi
+if [[ "$namespace" =~ .*_S_* ]]
+then
+    cat ${namespace}.out >> ${name}_S_QM2.xtbout.log
+    cat ${namespace}.lastout >> ${name}_S_QM2.xtbout.log
+fi
+
+# save xtbrestart
+cp ${namespace}.xtbrestart ${namespace}.orca.xtbrestart
+
+
+#if [ -f "$namespace.energy" ]
+#then
+#   energy=$(cat "$namespace.energy")
+#   echo "$energy" | awk 'BEGIN {print "$energy"}; END {print "$end"}; NF == 2 {print $1, $2, $2, $2}; NF == 4 {print $0}' > "$namespace.energy"
+#fi
+
